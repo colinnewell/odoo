@@ -974,6 +974,7 @@ class OpenERPSession(werkzeug.contrib.sessions.Session):
         """
         if not self.db or not self.uid:
             raise SessionExpiredException("Session expired")
+        # FIXME !!!!
         security.check(self.db, self.uid, self.password)
 
     def logout(self, keep_db=False):
@@ -1078,6 +1079,7 @@ class OpenERPSession(werkzeug.contrib.sessions.Session):
         if self.uid and not force:
             return
         # TODO use authenticate instead of login
+        # FIXME: !!!!
         self.uid = self.proxy("common").login(self.db, self.login, self.password)
         if not self.uid:
             raise AuthenticationError("Authentication failure")
@@ -1108,6 +1110,7 @@ class OpenERPSession(werkzeug.contrib.sessions.Session):
             Use the registry and cursor in :data:`request` instead.
         """
         self.assert_valid()
+        # FIXME: !!!!
         r = self.proxy('object').exec_workflow(self.db, self.uid, self.password, model, signal, id)
         return r
 

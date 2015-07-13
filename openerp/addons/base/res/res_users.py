@@ -495,14 +495,17 @@ class res_users(osv.osv):
         if not passwd:
             # empty passwords disallowed for obvious security reasons
             raise openerp.exceptions.AccessDenied()
+        # FIXME: !!!
         if self._uid_cache.get(db, {}).get(uid) == passwd:
             return
         cr = self.pool.cursor()
         try:
             self.check_credentials(cr, uid, passwd)
             if self._uid_cache.has_key(db):
+                # FIXME: !!!
                 self._uid_cache[db][uid] = passwd
             else:
+                # FIXME: !!!
                 self._uid_cache[db] = {uid:passwd}
         finally:
             cr.close()

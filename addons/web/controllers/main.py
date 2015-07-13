@@ -1565,6 +1565,7 @@ class Reports(http.Controller):
                 report_ids = action['datas'].pop('ids')
             report_data.update(action['datas'])
 
+        # FIXME: !!!!
         report_id = report_srv.report(
             request.session.db, request.session.uid, request.session.password,
             action["report_name"], report_ids,
@@ -1572,6 +1573,7 @@ class Reports(http.Controller):
 
         report_struct = None
         while True:
+            # FIXME: !!!!
             report_struct = report_srv.report_get(
                 request.session.db, request.session.uid, request.session.password, report_id)
             if report_struct["state"]:

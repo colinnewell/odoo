@@ -19,6 +19,7 @@ class EDI(openerp.http.Controller):
     @openerp.http.route('/edi/import_edi_url', type='json', auth='none')
     def import_edi_url(self, url):
         req = openerp.http.request
+        # FIXME: !!!!
         result = req.session.proxy('edi').import_edi_url(req.session._db, req.session._uid, req.session._password, url)
         if len(result) == 1:
             return {"action": webmain.clean_action(req, result[0][2])}
