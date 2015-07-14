@@ -142,7 +142,6 @@ class res_users(osv.osv):
         avatar, ... The user model is now dedicated to technical data.
     """
     __admin_ids = {}
-    _uid_cache = {}
     _inherits = {
         'res.partner': 'partner_id',
     }
@@ -340,11 +339,6 @@ class res_users(osv.osv):
         self.pool['ir.model.access'].call_cache_clearing_methods(cr)
         clear = partial(self.pool['ir.rule'].clear_cache, cr)
         map(clear, ids)
-        db = cr.dbname
-        if db in self._uid_cache:
-            for id in ids:
-                if id in self._uid_cache[db]:
-                    del self._uid_cache[db][id]
         self._context_get.clear_cache(self)
         self.has_group.clear_cache(self)
         return res
@@ -352,11 +346,6 @@ class res_users(osv.osv):
     def unlink(self, cr, uid, ids, context=None):
         if 1 in ids:
             raise osv.except_osv(_('Can not remove root user!'), _('You can not remove the admin user as it is used internally for resources created by Odoo (updates, module installation, ...)'))
-        db = cr.dbname
-        if db in self._uid_cache:
-            for id in ids:
-                if id in self._uid_cache[db]:
-                    del self._uid_cache[db][id]
         return super(res_users, self).unlink(cr, uid, ids, context=context)
 
     def name_search(self, cr, user, name='', args=None, operator='ilike', context=None, limit=100):
@@ -495,18 +484,9 @@ class res_users(osv.osv):
         if not passwd:
             # empty passwords disallowed for obvious security reasons
             raise openerp.exceptions.AccessDenied()
-        # FIXME: !!!
-        if self._uid_cache.get(db, {}).get(uid) == passwd:
-            return
         cr = self.pool.cursor()
         try:
             self.check_credentials(cr, uid, passwd)
-            if self._uid_cache.has_key(db):
-                # FIXME: !!!
-                self._uid_cache[db][uid] = passwd
-            else:
-                # FIXME: !!!
-                self._uid_cache[db] = {uid:passwd}
         finally:
             cr.close()
 
