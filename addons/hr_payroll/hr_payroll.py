@@ -31,7 +31,6 @@ from openerp.osv import fields, osv
 from openerp.tools.translate import _
 import openerp.addons.decimal_precision as dp
 
-from openerp.tools.safe_eval import safe_eval as eval
 
 class hr_payroll_structure(osv.osv):
     """
@@ -449,6 +448,25 @@ class hr_payslip(osv.osv):
             res += [attendances] + leaves
         return res
 
+    def _get_rule_data(self, rule):
+        return {
+            'salary_rule_id': rule.id,
+            'name': rule.name,
+            'code': rule.code,
+            'category_id': rule.category_id.id,
+            'sequence': rule.sequence,
+            'appears_on_payslip': rule.appears_on_payslip,
+            'condition_select': rule.condition_select,
+            'condition_range': rule.condition_range,
+            'condition_range_min': rule.condition_range_min,
+            'condition_range_max': rule.condition_range_max,
+            'amount_select': rule.amount_select,
+            'amount_fix': rule.amount_fix,
+            'amount_percentage': rule.amount_percentage,
+            'amount_percentage_base': rule.amount_percentage_base,
+            'register_id': rule.register_id.id,
+        }
+
     def get_inputs(self, cr, uid, contract_ids, date_from, date_to, context=None):
         res = []
         contract_obj = self.pool.get('hr.contract')
@@ -588,30 +606,13 @@ class hr_payslip(osv.osv):
                     #sum the amount for its salary category
                     localdict = _sum_salary_rule_category(localdict, rule.category_id, tot_rule - previous_amount)
                     #create/overwrite the rule in the temporary results
-                    result_dict[key] = {
-                        'salary_rule_id': rule.id,
+                    result_dict[key] = dict(self._get_rule_data(rule) + {
                         'contract_id': contract.id,
-                        'name': rule.name,
-                        'code': rule.code,
-                        'category_id': rule.category_id.id,
-                        'sequence': rule.sequence,
-                        'appears_on_payslip': rule.appears_on_payslip,
-                        'condition_select': rule.condition_select,
-                        'condition_python': rule.condition_python,
-                        'condition_range': rule.condition_range,
-                        'condition_range_min': rule.condition_range_min,
-                        'condition_range_max': rule.condition_range_max,
-                        'amount_select': rule.amount_select,
-                        'amount_fix': rule.amount_fix,
-                        'amount_python_compute': rule.amount_python_compute,
-                        'amount_percentage': rule.amount_percentage,
-                        'amount_percentage_base': rule.amount_percentage_base,
-                        'register_id': rule.register_id.id,
                         'amount': amount,
                         'employee_id': contract.employee_id.id,
                         'quantity': qty,
                         'rate': rate,
-                    }
+                    })
                 else:
                     #blacklist this rule and its children
                     blacklist += [id for id, seq in self.pool.get('hr.salary.rule')._recursive_search_of_rules(cr, uid, [rule], context=context)]
@@ -759,19 +760,16 @@ class hr_salary_rule(osv.osv):
         'appears_on_payslip': fields.boolean('Appears on Payslip', help="Used to display the salary rule on payslip."),
         'parent_rule_id':fields.many2one('hr.salary.rule', 'Parent Salary Rule', select=True),
         'company_id':fields.many2one('res.company', 'Company', required=False),
-        'condition_select': fields.selection([('none', 'Always True'),('range', 'Range'), ('python', 'Python Expression')], "Condition Based on", required=True),
+        'condition_select': fields.selection([('none', 'Always True'),('range', 'Range')], "Condition Based on", required=True),
         'condition_range':fields.char('Range Based on', readonly=False, help='This will be used to compute the % fields values; in general it is on basic, but you can also use categories code fields in lowercase as a variable names (hra, ma, lta, etc.) and the variable basic.'),
-        'condition_python':fields.text('Python Condition', required=True, readonly=False, help='Applied this rule for calculation if condition is true. You can specify condition like basic > 1000.'),
         'condition_range_min': fields.float('Minimum Range', required=False, help="The minimum amount, applied for this rule."),
         'condition_range_max': fields.float('Maximum Range', required=False, help="The maximum amount, applied for this rule."),
         'amount_select':fields.selection([
             ('percentage','Percentage (%)'),
             ('fix','Fixed Amount'),
-            ('code','Python Code'),
         ],'Amount Type', select=True, required=True, help="The computation method for the rule amount."),
         'amount_fix': fields.float('Fixed Amount', digits_compute=dp.get_precision('Payroll'),),
         'amount_percentage': fields.float('Percentage (%)', digits_compute=dp.get_precision('Payroll Rate'), help='For example, enter 50.0 to apply a percentage of 50%'),
-        'amount_python_compute':fields.text('Python Code'),
         'amount_percentage_base': fields.char('Percentage based on', required=False, readonly=False, help='result will be affected to a variable'),
         'child_ids':fields.one2many('hr.salary.rule', 'parent_rule_id', 'Child Salary Rule', copy=True),
         'register_id':fields.many2one('hr.contribution.register', 'Contribution Register', help="Eventual third party involved in the salary payment of the employees."),
@@ -779,35 +777,6 @@ class hr_salary_rule(osv.osv):
         'note':fields.text('Description'),
      }
     _defaults = {
-        'amount_python_compute': '''
-# Available variables:
-#----------------------
-# payslip: object containing the payslips
-# employee: hr.employee object
-# contract: hr.contract object
-# rules: object containing the rules code (previously computed)
-# categories: object containing the computed salary rule categories (sum of amount of all rules belonging to that category).
-# worked_days: object containing the computed worked days.
-# inputs: object containing the computed inputs.
-
-# Note: returned value have to be set in the variable 'result'
-
-result = contract.wage * 0.10''',
-        'condition_python':
-'''
-# Available variables:
-#----------------------
-# payslip: object containing the payslips
-# employee: hr.employee object
-# contract: hr.contract object
-# rules: object containing the rules code (previously computed)
-# categories: object containing the computed salary rule categories (sum of amount of all rules belonging to that category).
-# worked_days: object containing the computed worked days
-# inputs: object containing the computed inputs
-
-# Note: returned value have to be set in the variable 'result'
-
-result = rules.NET > categories.NET * 0.10''',
         'condition_range': 'contract.wage',
         'sequence': 5,
         'appears_on_payslip': True,
@@ -856,11 +825,10 @@ result = rules.NET > categories.NET * 0.10''',
             except:
                 raise osv.except_osv(_('Error!'), _('Wrong percentage base or quantity defined for salary rule %s (%s).')% (rule.name, rule.code))
         else:
-            try:
-                eval(rule.amount_python_compute, localdict, mode='exec', nocopy=True)
-                return float(localdict['result']), 'result_qty' in localdict and localdict['result_qty'] or 1.0, 'result_rate' in localdict and localdict['result_rate'] or 100.0
-            except:
-                raise osv.except_osv(_('Error!'), _('Wrong python code defined for salary rule %s (%s).')% (rule.name, rule.code))
+            return self._extended_compute(cr, uid, rule, localdict, context=context)
+
+    def _extended_compute(self, cr, uid, rule, localdict, context=None):
+        raise osv.except_osv(_('Error!'), _('Unrecognised amount type %s (%s) - %s.')% (rule.name, rule.code, rule.amount_select))
 
     def satisfy_condition(self, cr, uid, rule_id, localdict, context=None):
         """
@@ -878,12 +846,11 @@ result = rules.NET > categories.NET * 0.10''',
                 return rule.condition_range_min <=  result and result <= rule.condition_range_max or False
             except:
                 raise osv.except_osv(_('Error!'), _('Wrong range condition defined for salary rule %s (%s).')% (rule.name, rule.code))
-        else: #python code
-            try:
-                eval(rule.condition_python, localdict, mode='exec', nocopy=True)
-                return 'result' in localdict and localdict['result'] or False
-            except:
-                raise osv.except_osv(_('Error!'), _('Wrong python condition defined for salary rule %s (%s).')% (rule.name, rule.code))
+        else: # allow other modules to extend it
+            return self._extended_condition(cr, uid, rule, localdict, context=context)
+
+    def _extended_condition(self, cr, uid, rule, localdict, context=None):
+        raise osv.except_osv(_('Error!'), _('Unrecognised condition type %s (%s) - %s.')% (rule.name, rule.code, rule.condition_select))
 
 
 class hr_rule_input(osv.osv):
