@@ -95,7 +95,7 @@ class AccountConfigSettings(models.TransientModel):
              'the project managers can set the planned amount on each analytic account.\n'
              '-This installs the module account_budget.')
     module_account_tax_cash_basis = fields.Boolean(string="Allow Tax Cash Basis",
-                                        help='Generate tax cash basis entrie when reconciliating entries')
+                                        help='Generate tax cash basis entry when reconciliating entries')
 
     group_proforma_invoices = fields.Boolean(string='Allow pro-forma invoices',
         implied_group='account.group_proforma_invoices',
